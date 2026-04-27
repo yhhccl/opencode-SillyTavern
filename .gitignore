@@ -37,6 +37,8 @@ web-frontend/server-*.log
 web-frontend/settings.json
 web-frontend/state.js
 web-frontend/test.html
+web-frontend/server.pid
+web-frontend/content.js.tmp
 
 # Python 缓存
 __pycache__/

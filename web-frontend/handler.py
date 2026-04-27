@@ -25,6 +25,13 @@ BRIDGE = "http://localhost:8765"
 IMG_RE = re.compile(r'\[img:\s*(.+?)\]')
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    """原子写入文件: 先写 .tmp 再 rename, 避免浏览器读到半截内容。"""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(content, encoding="utf-8")
+    tmp.replace(path)
+
+
 def load_log():
     try:
         raw = json.loads(CHAT_LOG.read_text(encoding="utf-8"))
@@ -141,7 +148,7 @@ def build_content_js(chat_log_path=None, output_path=None):
         f"var TURN_OPTIONS = {json.dumps(options, ensure_ascii=False)};\n"
         f"var IMG_GENERATED = {json.dumps(all_generated, ensure_ascii=False)};\n"
     )
-    out_path.write_text(js, encoding="utf-8")
+    _atomic_write(out_path, js)
 
 
 def _extract_options(text):
@@ -175,15 +182,15 @@ def _normalize_entries(entries):
             continue
         role = entry.get("role", "")
         if role == "ai":
-            role = "assistant"
+            entry["role"] = "assistant"
             changed = True
-        content = entry.get("content", "")
-        if entry.get("id") and entry.get("timestamp") and role == entry.get("role", ""):
+        if entry.get("id") and entry.get("timestamp"):
             normalized.append(entry)
             continue
+        content = entry.get("content", "")
         normalized.append(
             _make_entry(
-                role=role,
+                role=entry.get("role", "user"),
                 content=content,
                 entry_id=entry.get("id"),
                 timestamp=entry.get("timestamp"),

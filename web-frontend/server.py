@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""server.py — RP Bridge Server for OpenCode (auto-polling mode).
+"""server.py — RP Bridge Server for OpenCode (TUI injection mode).
 
 HTTP 服务器 (端口 8765, ThreadingHTTPServer):
   POST /api/submit         — 写 web-input.txt + .pending, 立即返回
@@ -16,10 +16,15 @@ HTTP 服务器 (端口 8765, ThreadingHTTPServer):
   静态文件                  — 提供 index.html 等前端资源
 
 Auto-polling (后台线程):
-  检测 .pending 出现 → 创建 web-needs-reply 信号
-  OpenCode /loop 检测信号 → 读输入 → 生成 → 写 web-response.txt
-  后台线程检测 web-response.txt → handler 处理 → 重建 content.js
-  → 清除所有标记 → 浏览器自动刷新
+  检测 .pending 出现 → 读 web-input.txt → 调用 opencode_client.send_message()
+  → HTTP POST /tui/clear-prompt + /tui/append-prompt + /tui/submit-prompt
+  → 消息注入 opencode TUI 输入框 → AI 按 AGENTS.md 处理
+  → AI Write web-response.txt → poller 返回 → handler 处理 → 重建 content.js
+  → 浏览器自动刷新
+
+启动前提: opencode --port 4096  (TUI 必须以固定端口运行)
+启动: python web-frontend/server.py
+停止: Ctrl+C 或 OpenCode 中 退出RP
 """
 
 import json, os, sys, time, threading, subprocess, re, queue
@@ -50,6 +55,8 @@ from airp_context import (
 
 PORT = 8765
 ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = ROOT.parent
+PID_FILE = ROOT / "server.pid"
 INPUT_FILE = ROOT / "web-input.txt"
 RESPONSE_FILE = ROOT / "web-response.txt"
 NEEDS_REPLY_FILE = ROOT / "web-needs-reply"
@@ -77,13 +84,16 @@ os.chdir(str(ROOT))
 
 
 def init_files():
+    for f in [PENDING_FILE, NEEDS_REPLY_FILE, RESPONSE_FILE]:
+        f.unlink(missing_ok=True)
     current_card = get_current_card_name()
     if current_card:
         ensure_card_runtime(current_card)
     if not CHAT_LOG.exists():
         CHAT_LOG.write_text("[]", encoding="utf-8")
     if not CONTENT_JS.exists():
-        CONTENT_JS.write_text("var TURN_OPTIONS = []; var CONTENT_HTML = '';", encoding="utf-8")
+        from handler import _atomic_write
+        _atomic_write(CONTENT_JS, "var TURN_OPTIONS = []; var CONTENT_HTML = '';")
     if not STATE_JS.exists():
         STATE_JS.write_text(
             f'var STATE = {{"card":{json.dumps(current_card, ensure_ascii=False)},"time":"","location":"","characters":{{}},'
@@ -104,43 +114,51 @@ def init_files():
 # ═══ Auto-Polling Thread ═══
 
 def response_poller():
-    """后台线程: 管理轮询状态。"""
-    from handler import build_content_js
+    """后台线程: 检测 pending → 注入 opencode TUI → 等待 AI 回复 → 处理。"""
+    from handler import append_message, build_content_js, load_log
+    from opencode_client import send_message
 
-    print("[poller] 自动轮询已启动")
+    print("[poller] TUI 注入模式已启动 (opencode --port 4096)")
     while True:
         try:
-            # Step 1: .pending 出现 → 转为 web-needs-reply 信号
-            if PENDING_FILE.exists() and not RESPONSE_FILE.exists():
-                NEEDS_REPLY_FILE.touch()
-                PENDING_FILE.unlink()
-                print("[poller] 收到输入, 等待 AI 回复...")
-
-            # Step 2: web-response.txt 出现 → 处理回复
-            if RESPONSE_FILE.exists():
+            if PENDING_FILE.exists():
                 user_input = INPUT_FILE.read_text(encoding="utf-8").strip()
-                ai_reply = RESPONSE_FILE.read_text(encoding="utf-8").strip()
+                PENDING_FILE.unlink()
+                RESPONSE_FILE.unlink(missing_ok=True)
+                NEEDS_REPLY_FILE.unlink(missing_ok=True)
 
-                if ai_reply:
-                    from handler import append_message, load_log
-                    append_message("user", user_input)
-                    append_message("assistant", ai_reply)
-                    finalize_turn_context(ai_reply)
-                    log = load_log()
-                    build_content_js(CHAT_LOG, CONTENT_JS)
+                if not user_input:
+                    time.sleep(1.5)
+                    continue
 
-                    try:
-                        import json as _json
-                        current = _json.loads(STATE_JS.read_text(encoding="utf-8").replace("var STATE = ", "").rstrip(";"))
-                        current["generatedCount"] = len(log)
-                        STATE_JS.write_text(f"var STATE = {_json.dumps(current, ensure_ascii=False)};", encoding="utf-8")
-                    except Exception:
-                        pass
+                print(f"[poller] 收到: {user_input[:60]}... → 注入 TUI")
+                try:
+                    ai_reply = send_message(user_input, cwd=PROJECT_ROOT)
+                except Exception as e:
+                    print(f"[poller] TUI 注入失败: {e}")
+                    PENDING_FILE.touch()
+                    time.sleep(3)
+                    continue
 
-                    RESPONSE_FILE.unlink(missing_ok=True)
-                    PENDING_FILE.unlink(missing_ok=True)
-                    NEEDS_REPLY_FILE.unlink(missing_ok=True)
-                    print(f"[poller] 回复已处理 ({len(ai_reply)} 字, {len(log)} 轮)")
+                if not ai_reply:
+                    print("[poller] 空回复, 跳过")
+                    continue
+
+                append_message("user", user_input)
+                append_message("assistant", ai_reply)
+                finalize_turn_context(ai_reply)
+                log = load_log()
+                build_content_js(CHAT_LOG, CONTENT_JS)
+
+                try:
+                    import json as _json
+                    current = _json.loads(STATE_JS.read_text(encoding="utf-8").replace("var STATE = ", "").rstrip(";"))
+                    current["generatedCount"] = len(log)
+                    STATE_JS.write_text(f"var STATE = {_json.dumps(current, ensure_ascii=False)};", encoding="utf-8")
+                except Exception:
+                    pass
+
+                print(f"[poller] 回复已处理 ({len(ai_reply)} 字, {len(log)} 轮)")
 
             time.sleep(1.5)
         except KeyboardInterrupt:
@@ -555,7 +573,18 @@ class RPHandler(SimpleHTTPRequestHandler):
 
 
 def main():
+    try:
+        _main()
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        PID_FILE.unlink(missing_ok=True)
+        sys.exit(1)
+
+def _main():
     init_files()
+
+    PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
 
     # Start auto-polling thread
     poller = threading.Thread(target=response_poller, daemon=True)
@@ -563,15 +592,22 @@ def main():
     worker = threading.Thread(target=image_worker, daemon=True)
     worker.start()
 
-    print(f"\n  OpenCode RP Bridge (auto-polling)")
+    print(f"\n  OpenCode RP Bridge (TUI 注入模式)")
+    print(f"  项目: {PROJECT_ROOT}")
+    print(f"  TUI API: http://127.0.0.1:4096")
     print(f"  前端 → http://localhost:{PORT}/index.html")
-    print(f"  后台轮询已启动 — 浏览器发送后,/loop 生成回复自动刷新\n")
+    print(f"  PID {os.getpid()} → {PID_FILE}")
+    print(f"  前提: opencode --port 4096")
+    print(f"  浏览器发送 → 注入 TUI 输入框 → AI 生成 → 自动刷新\n")
     server = ThreadingHTTPServer(("127.0.0.1", PORT), RPHandler)
+    server.allow_reuse_address = True
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n[server] 已停止")
         server.shutdown()
+    finally:
+        PID_FILE.unlink(missing_ok=True)
 
 def _now_iso():
     return datetime.now().isoformat(timespec="seconds")

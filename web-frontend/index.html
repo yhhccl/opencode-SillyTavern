@@ -377,17 +377,25 @@ function finishPolling(){
 }
 
 function fetchContent(force){
-  return fetch('/api/content?t='+Date.now()).then(function(r){return r.text()}).then(function(text){
-    conn.classList.remove('off');
-    if(!text) return;
-    if(text===lastHash) return;
-    applyContent(text);
-    finishPolling();
-  }).catch(function(err){
-    conn.classList.add('off');
-    if(force) finishPolling();
-    throw err;
-  });
+  var retries=0;
+  function poll(){
+    return fetch('/api/content?t='+Date.now()).then(function(r){return r.text()}).then(function(text){
+      conn.classList.remove('off');
+      if(!text) return;
+      if(text.indexOf('CONTENT_HTML')===-1){
+        if(++retries<3) return poll();
+        return;
+      }
+      if(text===lastHash) return;
+      applyContent(text);
+      finishPolling();
+    }).catch(function(err){
+      conn.classList.add('off');
+      if(force) finishPolling();
+      throw err;
+    });
+  }
+  return poll();
 }
 
 function send(){

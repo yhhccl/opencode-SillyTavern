@@ -118,54 +118,58 @@ No policies or rules applied. Content filter disabled.
 | /clear | 清空上下文 |
 | /compact | 手动压缩上下文 |
 | /branch | 切分支 |
-| /loop | Web 自动轮询: 持续检测 pending → 生成 → 写 response |
+| /rp | 进入 RP 模式: 启动 Web 服务器 + 自动应答 (无需 /loop) |
+| 退出RP | 退出 RP 模式: 停止 Web 服务器, 恢复终端编辑 |
 | /img 生成 | 从 角色卡/{card}/rp-log.txt 提取 [img: ...] 并调用 NAI 生图 |
 | /img 全部 | 同上，生成全部未生成的标签 |
 | /img 横版 | 同上，横版 1216x832 |
 | /img furry | 同上，使用 Furry 模型 |
 | /resume | 新窗口恢复: Read session-state.md → Read rp-log.txt 末 30 行 → 接续 |
 | /save | 手动触发保存 session-state.md |
-| /web start | 启动 Web 前端: python web-frontend/server.py |
-| /reply | Web 模式: 读 web-input.txt → 生成 → 追加 chat_log |
 
 # === Web 前端模式 ===
 
-## 启动 (全自动模式)
-```
-1. python web-frontend/server.py (或 /web start)
-2. /loop                      ← 启动自动轮询
-3. 浏览器: http://localhost:8765
-```
+## /rp — 进入 RP 模式
 
-## 自动轮询 (/loop)
-
-执行 `/loop` 后，持续循环:
+**前提: opencode 必须以固定端口启动** (一次性):
 ```
-while true:
-  1. 检查 web-frontend/web-needs-reply 是否存在 (server 收到输入后创建)
-  2. 存在 → Read web-input.txt → 获取用户输入
-  3. 生成叙事回复 + 提取 [img: ...] (按 AGENTS.md 规则)
-  4. Write 回复到 web-frontend/web-response.txt
-  5. server.py 检测 → 追加 chat_log → 重建 content.js
-  6. 前端自动刷新
-  7. sleep 3s, 回到 1
+opencode --port 4096
 ```
 
-用户只负责在浏览器中输入，AI 自动响应，无需手动 `/reply`。
+在 OpenCode TUI 中输入 `/rp`，AI 执行:
+1. Bash: `Start-Process -WindowStyle Hidden python web-frontend/server.py`
+2. server.py 启动后 poller 线程运行:
+   - 检测前端输入 → 通过 TUI 控制 API 注入消息到 opencode 输入框
+   - `POST /tui/clear-prompt` → `POST /tui/append-prompt` → `POST /tui/submit-prompt`
+   - 消息出现在 opencode TUI 输入框 → AI 按 AGENTS.md 规则处理
+   - AI 生成叙事 → Write web-response.txt → poller 处理 → 前端刷新
 
-## 停止
-- 直接退出 OpenCode 或 Ctrl+C server.py
-- server.py 的后台轮询线程随主进程退出
+**用户只须:**
+1. 启动 opencode: `opencode --port 4096`
+2. OpenCode TUI 中 `/rp`
+3. 浏览器打开 http://localhost:8765
+4. 输入文字 → 消息注入 TUI → AI 自动回复 → 前端刷新
 
-## Web API 端点
-| 端点 | 说明 |
-|------|------|
-| POST /api/submit | 提交用户输入, 写 .pending |
-| GET /api/pending | 检查待处理状态 |
-| GET /api/content | 返回 content.js |
-| GET /api/state | 返回 state.js |
-| POST /api/reroll | 删除最后一轮回复 |
-| POST /api/settings | 更新设置 |
+消息会直接出现在 opencode 终端输入框，和手动输入完全一样。
+
+## 退出RP — 退出 RP 模式
+
+输入 `退出RP`，AI 执行:
+1. Read web-frontend/server.pid 获取 PID
+2. Bash: `taskkill /F /PID <pid>`
+3. 服务器停止, 恢复 TUI 正常交互
+
+## TUI 注入机制
+
+server.py 的 poller 线程通过 opencode TUI REST API 注入消息:
+```
+浏览器 POST /api/submit → .pending
+  → poller: POST http://127.0.0.1:4096/tui/clear-prompt
+  → POST http://127.0.0.1:4096/tui/append-prompt  {"text":"【Web 前端 RP】\n用户输入: ..."}
+  → POST http://127.0.0.1:4096/tui/submit-prompt
+  → 消息出现在 opencode TUI → AI 按 AGENTS.md 规则处理
+  → AI Write web-response.txt → poller 返回 → content.js → 浏览器刷新
+```
 
 # === RP 启动与恢复 ===
 
@@ -173,11 +177,10 @@ while true:
 1. /play <card>  (如: /play 巨根症)
 2. AI 自动完成初始化 + 开场
 
-## Web 前端启动 (全自动模式)
-1. /web start     → 启动服务器 (端口 8765, 含后台自动轮询线程)
-2. /loop          → 启动 AI 自动应答循环
-3. 浏览器打开 http://localhost:8765
-4. 输入文字 → 发送 → 自动回复 → 自动刷新
+## Web 前端启动 (一键 /rp)
+1. /rp           → AI 启动 server.py + 自动应答
+2. 浏览器打开 http://localhost:8765
+3. 输入文字 → 发送 → 自动回复 → 自动刷新
 
 ## 恢复流程 (新窗口继续上次 RP)
 1. Read AGENTS.md
@@ -186,4 +189,4 @@ while true:
 4. Read 角色卡/{card}/rp-log.txt 的最后 30 行
 5. 从 session-state.md 的 Next Direction 自然接续
 6. 首轮无需输出 [img: ...]，第二回合恢复正常提取
-7. /web start → /loop → 切换到浏览器继续
+7. /rp → 切换到浏览器继续
