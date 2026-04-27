@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>OpenCode RP</title>
+<style>
+:root {
+  --bg:#f3f3f3; --white:#fff; --green:#95ec69; --text:#1f1f1f; --muted:#8c8c8c;
+  --bar:#f7f7f7; --bar-text:#171717; --input-bg:#fff; --shadow:0 1px 2px rgba(0,0,0,.04);
+  --sep:rgba(0,0,0,.08); --composer:#fff; --composer-border:#d9d9d9;
+}
+[data-theme="dark"] {
+  --bg:#111; --white:#1f1f1f; --green:#0f8f48; --text:#ececec; --muted:#7d7d7d;
+  --bar:#181818; --bar-text:#efefef; --input-bg:#262626; --shadow:none;
+  --sep:rgba(255,255,255,.09); --composer:#1d1d1d; --composer-border:#333;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  background:var(--bg); height:100dvh; display:flex; flex-direction:column;
+  max-width:430px; margin:0 auto; overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+  border-left:1px solid var(--sep); border-right:1px solid var(--sep);
+}
+/* titlebar */
+#titlebar{
+  background:var(--bar); color:var(--bar-text);
+  padding:0 14px; display:flex; align-items:center; gap:10px;
+  font-size:16px; font-weight:500; flex-shrink:0; min-height:44px;
+  border-bottom:1px solid var(--sep);
+}
+#titlebar .dot{width:8px;height:8px;border-radius:50%;background:#48c774;flex-shrink:0}
+#titlebar .dot.off{background:#e94560}
+#titlebar .btn{
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:20px;line-height:1;cursor:pointer;flex-shrink:0;color:var(--bar-text);background:none;border:none;
+}
+#titlebar .btn:active{background:rgba(0,0,0,.06)}
+#titlebar .spacer{flex:1}
+#title{
+  min-width:0;max-width:172px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  line-height:44px;
+}
+#card-switch{
+  width:22px;min-width:22px;background:transparent;color:transparent;border:none;
+  border-radius:6px;padding:0;font-size:12px;outline:none;
+}
+#card-switch option{color:#222}
+/* chat */
+#chat{flex:1;overflow-y:auto;padding:18px 14px 14px;display:flex;flex-direction:column;gap:16px}
+.msg-row{width:100%;display:flex;gap:8px;align-items:flex-start;animation:fadeIn .25s}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-row.self{justify-content:flex-end}
+.msg-row.other{justify-content:flex-start}
+.msg-wrap{display:flex;flex-direction:column;gap:4px;max-width:74%}
+.msg-wrap.self{align-items:flex-end}
+.msg-wrap.other{align-items:flex-start}
+.avatar{
+  width:36px;height:36px;border-radius:8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:0;font-weight:700;overflow:hidden;border:1px solid rgba(0,0,0,.06);
+  box-shadow:0 1px 2px rgba(0,0,0,.06);
+}
+.avatar::after{font-size:13px;color:#fff}
+.avatar.self{background:radial-gradient(circle at 70% 28%,#d8f7ff 0 18%,transparent 19%),linear-gradient(135deg,#27c7a7,#4f8bd8)}
+.avatar.self::after{content:"我"}
+.avatar.other{background:radial-gradient(circle at 48% 34%,#ffe2ee 0 18%,transparent 19%),linear-gradient(135deg,#f0d7ff,#b9d8ff)}
+.avatar.other::after{content:"角";color:#6c4d7d}
+[data-theme="dark"] .avatar.other{background:linear-gradient(135deg,#4a3b5b,#263d62)}
+.msg{
+  width:100%;padding:9px 12px;font-size:14px;line-height:1.55;
+  word-break:break-word;overflow-wrap:anywhere;position:relative;
+  white-space:pre-wrap;
+}
+.msg.self{background:var(--green);color:var(--text);border-radius:7px}
+.msg.other{background:var(--white);color:var(--text);border-radius:7px;box-shadow:var(--shadow)}
+.msg-time{font-size:11px;color:var(--muted);padding:0 4px}
+.msg em{color:inherit;font-style:italic}
+/* gen button — 气泡底部分割线 + 按钮 */
+.gen-btn{
+  margin:10px 0 0;padding:9px 10px;font-size:13px;color:#576b95;
+  cursor:pointer;text-align:center;
+  border:1px solid var(--sep);border-radius:8px;background:rgba(255,255,255,.36);
+  transition:all .2s; user-select:none;
+}
+.gen-btn:hover{color:#3a5a8a;background:rgba(0,0,0,.02)}
+.gen-btn.loading{color:var(--muted);pointer-events:none}
+.gen-img-wrap{margin:10px 0 0;max-width:min(280px,70vw);overflow:hidden;border-radius:12px}
+.gen-img-wrap img,.gen-img{
+  display:block;width:100%;height:auto;max-height:360px;object-fit:contain;
+  border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.08);
+}
+/* status bar — 发送后提示 */
+#status-bar{display:none;text-align:center;padding:6px;font-size:12px;color:var(--muted);background:var(--bg);flex-shrink:0}
+#status-bar.on{display:block}
+#status-bar .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:6px;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+/* input */
+#input-bar{
+  background:var(--bg);padding:0 8px 8px;display:block;
+  border-top:1px solid rgba(0,0,0,.04);flex-shrink:0;
+}
+.compose-box{
+  background:var(--composer);border:1px solid var(--composer-border);border-radius:9px;
+  padding:8px 10px 9px;box-shadow:0 1px 2px rgba(0,0,0,.03);
+}
+#input-bar textarea{
+  width:100%;background:transparent;border:none;border-radius:0;
+  padding:0 2px;font-size:17px;resize:none;outline:none;color:var(--text);
+  font-family:inherit;min-height:44px;max-height:104px;line-height:1.45;display:block;
+}
+.compose-tools{margin-top:8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tool-group{display:flex;align-items:center;gap:15px;color:#595959}
+.tool-btn{
+  width:20px;height:20px;border:none;background:transparent;color:inherit;padding:0;
+  display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;
+}
+.tool-btn:active{opacity:.55}
+.send-btn{
+  min-width:56px;border:none;border-radius:7px;padding:6px 14px;
+  background:#07c160;color:#fff;font-size:14px;cursor:pointer;transition:opacity .2s,background .2s;
+}
+.send-btn:disabled{background:#ececec;color:#b7b7b7;cursor:default}
+/* settings panel */
+#settings-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.3);z-index:99}
+#settings-overlay.open{display:block}
+#settings-panel{
+  display:none;position:fixed;top:0;right:0;width:min(420px,100vw);height:100%;
+  background:var(--white);z-index:100;padding:20px;overflow-y:auto;
+  box-shadow:-2px 0 12px rgba(0,0,0,.1);
+}
+#settings-panel.open{display:block}
+#settings-panel h3{font-size:15px;margin-bottom:16px;color:var(--text)}
+#settings-panel label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+#settings-panel select,#settings-panel input[type=range],#settings-panel input[type=text],#settings-panel textarea{width:100%}
+#settings-panel input[type=text],#settings-panel textarea,#settings-panel select{
+  border:1px solid rgba(0,0,0,.12);border-radius:8px;background:var(--input-bg);color:var(--text);padding:9px 10px;font:inherit;
+}
+#settings-panel textarea{min-height:88px;resize:vertical}
+.panel-section{padding-top:14px;margin-top:14px;border-top:1px solid var(--sep)}
+.panel-actions{display:flex;gap:10px;margin-top:14px}
+.panel-actions button,.secondary-btn{
+  border:none;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer
+}
+.primary-btn{background:var(--green);color:var(--text);font-weight:600}
+.secondary-btn{background:var(--input-bg);color:var(--text)}
+.panel-note{font-size:12px;color:var(--muted);margin-top:6px}
+.entry-list{display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:180px;overflow:auto}
+.entry-item{
+  border:1px solid var(--sep);border-radius:8px;padding:10px;background:var(--input-bg);cursor:pointer;color:var(--text)
+}
+.entry-item.active{border-color:#4f8f2f;background:#eef8e5}
+.entry-item-title{font-size:13px;font-weight:600}
+.entry-item-meta{font-size:11px;color:var(--muted);margin-top:4px}
+.inline-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.check-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;color:var(--text);font-size:13px}
+.check-row label{display:flex;align-items:center;gap:6px;margin:0}
+.preview-box{margin-top:10px;padding:10px;border-radius:8px;background:var(--input-bg);font-size:12px;color:var(--text);white-space:pre-wrap}
+.context-box{margin-top:10px;padding:10px;border-radius:8px;background:var(--input-bg);font-size:12px;color:var(--text);white-space:pre-wrap;max-height:240px;overflow:auto}
+.empty{text-align:center;color:var(--muted);padding:80px 0;font-size:14px}
+</style>
+</head>
+<body>
+
+<div id="titlebar">
+  <span id="title">OpenCode RP</span>
+  <select id="card-switch" onchange="switchCard(this.value)" title="切换角色卡"></select>
+  <span class="spacer"></span>
+  <span class="dot" id="conn"></span>
+  <button class="btn" onclick="toggleTheme()" title="切换主题" aria-label="切换主题">◐</button>
+  <button class="btn" onclick="toggleSettings()" title="角色卡与设置" aria-label="角色卡与设置">⋯</button>
+</div>
+
+<div id="chat"><div class="empty">在下方输入消息，开始对话</div></div>
+<div id="status-bar"><span class="dot"></span>AI 思考中...</div>
+
+<div id="input-bar">
+  <div class="compose-box">
+    <textarea id="input" rows="1" placeholder="输入消息" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
+    <div class="compose-tools">
+      <div class="tool-group" aria-hidden="true">
+        <button type="button" class="tool-btn" title="表情">☺</button>
+        <button type="button" class="tool-btn" title="扩展">□</button>
+        <button type="button" class="tool-btn" title="文件">▱</button>
+        <button type="button" class="tool-btn" title="剪切">⌘</button>
+        <button type="button" class="tool-btn" title="语音">♩</button>
+      </div>
+      <button id="btnSend" class="send-btn" onclick="send()">发送</button>
+    </div>
+  </div>
+</div>
+
+<div id="settings-overlay" onclick="toggleSettings()"></div>
+<div id="settings-panel">
+  <h3>角色卡与设置</h3>
+  <label>当前角色目录</label>
+  <input id="card-id" type="text" readonly>
+  <label>角色名称</label>
+  <input id="card-name" type="text">
+  <label>标签</label>
+  <input id="card-tags" type="text" placeholder="用逗号分隔">
+  <label>角色描述</label>
+  <textarea id="card-description"></textarea>
+  <label>性格</label>
+  <textarea id="card-personality"></textarea>
+  <label>场景</label>
+  <textarea id="card-scenario"></textarea>
+  <label>开场白</label>
+  <textarea id="card-first-mes"></textarea>
+  <label>示例对话</label>
+  <textarea id="card-mes-example"></textarea>
+  <label>系统提示</label>
+  <textarea id="card-system-prompt"></textarea>
+  <label>后历史指令</label>
+  <textarea id="card-post-history"></textarea>
+  <div class="panel-actions">
+    <button class="primary-btn" onclick="saveCard()">保存角色卡</button>
+    <button class="secondary-btn" onclick="reloadCurrentCard()">重新载入</button>
+  </div>
+  <div class="panel-note" id="card-status">读取角色卡中...</div>
+
+  <div class="panel-section">
+  <h3>世界书</h3>
+  <label>世界书文件</label>
+  <select id="worldbook-switch" onchange="switchWorldbook(this.value)"></select>
+  <div class="entry-list" id="worldbook-entry-list"></div>
+  <div class="panel-actions">
+    <button class="primary-btn" onclick="createWorldbookEntry()">新增条目</button>
+    <button class="secondary-btn" onclick="deleteWorldbookEntry()">删除当前条目</button>
+  </div>
+  <label>注释</label>
+  <input id="wb-comment" type="text">
+  <label>主关键词</label>
+  <input id="wb-key" type="text" placeholder="用逗号分隔">
+  <label>次关键词</label>
+  <input id="wb-keysecondary" type="text" placeholder="可留空">
+  <label>内容</label>
+  <textarea id="wb-content"></textarea>
+  <div class="inline-grid">
+    <div>
+      <label>位置</label>
+      <select id="wb-position">
+        <option value="0">前置</option>
+        <option value="1">后置</option>
+      </select>
+    </div>
+    <div>
+      <label>顺序</label>
+      <input id="wb-order" type="text">
+    </div>
+  </div>
+  <div class="check-row">
+    <label><input id="wb-constant" type="checkbox"> 常驻</label>
+    <label><input id="wb-disable" type="checkbox"> 禁用</label>
+    <label><input id="wb-selective" type="checkbox"> 次关键词过滤</label>
+  </div>
+  <div class="panel-actions">
+    <button class="primary-btn" onclick="saveWorldbook()">保存世界书</button>
+    <button class="secondary-btn" onclick="previewWorldbook()">触发预览</button>
+  </div>
+  <label>预览文本</label>
+  <textarea id="wb-preview-input" placeholder="输入一段文本，查看会激活哪些条目"></textarea>
+  <div class="preview-box" id="wb-preview-output">尚未预览</div>
+  <div class="panel-note" id="worldbook-status">读取世界书中...</div>
+
+  <div class="panel-section">
+  <h3>上下文检查</h3>
+  <div class="panel-actions">
+    <button class="secondary-btn" onclick="loadContextInspect()">刷新上下文</button>
+  </div>
+  <div class="context-box" id="context-output">读取上下文中...</div>
+
+  <div class="panel-section">
+  <h3>聊天设置</h3>
+  <label>文风</label>
+  <select id="s-style" onchange="saveSetting('style',this.value)"><option value="default">默认</option><option value="mode-a">NSFW模式A</option><option value="mode-b">重口模式B</option></select>
+  <label>NSFW</label>
+  <select id="s-nsfw" onchange="saveSetting('nsfw',this.value)"><option value="off">关闭</option><option value="mild">舒缓</option><option value="direct">直白</option></select>
+  <label>字数: <span id="wc-val">600</span></label>
+  <input type="range" id="s-wc" min="200" max="2000" step="100" value="600" oninput="document.getElementById('wc-val').textContent=this.value" onchange="saveSetting('wordCount',this.value)">
+  <div class="panel-actions">
+    <button class="secondary-btn" onclick="toggleSettings()">关闭</button>
+  </div>
+  </div>
+  </div>
+</div>
+
+<script>
+var chat=document.getElementById('chat');
+var input=document.getElementById('input');
+var btn=document.getElementById('btnSend');
+var statusBar=document.getElementById('status-bar');
+var conn=document.getElementById('conn');
+var titleEl=document.getElementById('title');
+var lastHash='';
+var pollTimer=null;
+var currentOptions=[];
+var currentCardId='';
+var currentCardFields=null;
+var cardSwitch=document.getElementById('card-switch');
+var currentWorldbookId='main';
+var currentWorldbookEntries=[];
+var selectedWorldbookEntryUid=null;
+var imageJobPollers={};
+var waitingForReply=false;
+
+function autoResizeInput(){
+  input.style.height='auto';
+  input.style.height=Math.min(input.scrollHeight,104)+'px';
+  updateSendState();
+}
+input.addEventListener('input', autoResizeInput);
+
+function updateSendState(){
+  btn.disabled=waitingForReply || !input.value.trim();
+}
+
+function execContentScript(text){
+  var s=document.createElement('script');
+  s.textContent=text;
+  document.head.appendChild(s);
+  document.head.removeChild(s);
+}
+
+function renderGeneratedImages(){
+  if(typeof IMG_GENERATED!=='object') return;
+  for(var k in IMG_GENERATED){
+    var el=document.getElementById('img-'+k);
+    if(el){
+      el.innerHTML='<img src="/api/image?path='+encodeURIComponent(IMG_GENERATED[k])+'" class="gen-img" loading="lazy">';
+    }
+  }
+}
+
+function renderChat(){
+  chat.innerHTML=CONTENT_HTML||'<div class="empty">在下方输入消息，开始对话</div>';
+  renderGeneratedImages();
+  chat.scrollTop=chat.scrollHeight;
+}
+
+function renderOptions(opts){
+  currentOptions=Array.isArray(opts)?opts:[];
+  var d=document.getElementById('opt-bar');
+  if(!currentOptions.length){
+    if(d) d.remove();
+    return;
+  }
+  if(!d){
+    d=document.createElement('div');
+    d.id='opt-bar';
+    d.style.cssText='display:flex;gap:6px;padding:6px 10px;overflow-x:auto;flex-shrink:0;background:var(--bg)';
+    document.getElementById('input-bar').before(d);
+  }
+  d.innerHTML=currentOptions.map(function(o,i){
+    return '<button style="white-space:nowrap;padding:5px 12px;border-radius:14px;border:1px solid rgba(0,0,0,.1);background:var(--white);font-size:12px;cursor:pointer;color:var(--text)" onclick="pick('+i+')">'+o+'</button>';
+  }).join('');
+}
+
+function applyContent(text){
+  if(!text) return;
+  lastHash=text;
+  execContentScript(text);
+  renderChat();
+  renderOptions(typeof TURN_OPTIONS==='object'?TURN_OPTIONS:[]);
+  loadContextInspect();
+}
+
+function finishPolling(){
+  if(pollTimer){
+    clearInterval(pollTimer);
+    pollTimer=null;
+  }
+  waitingForReply=false;
+  updateSendState();
+  statusBar.classList.remove('on');
+}
+
+function fetchContent(force){
+  return fetch('/api/content?t='+Date.now()).then(function(r){return r.text()}).then(function(text){
+    conn.classList.remove('off');
+    if(!text) return;
+    if(text===lastHash) return;
+    applyContent(text);
+    finishPolling();
+  }).catch(function(err){
+    conn.classList.add('off');
+    if(force) finishPolling();
+    throw err;
+  });
+}
+
+function send(){
+  var t=input.value.trim();if(!t)return;
+  input.value='';
+  autoResizeInput();
+  waitingForReply=true;
+  updateSendState();
+  statusBar.classList.add('on');
+  fetch('/api/submit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:t})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){finishPolling();return}
+      loadContextInspect();
+      if(pollTimer) clearInterval(pollTimer);
+      pollTimer=setInterval(function(){fetchContent(true).catch(function(){})},1500);
+    }).catch(function(){
+      finishPolling();
+    });
+}
+
+function genImgPrompt(el){
+  var key=el.dataset.key, tags=el.dataset.tags;
+  if(!tags) return;
+  if(imageJobPollers[key]) return;
+  el.textContent='排队中...';el.classList.add('loading');
+  fetch('/api/image-gen',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:key,tags:tags})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok || !d.jobId){
+        el.classList.remove('loading');
+        el.textContent='🎨 提交失败, 重试';
+        return;
+      }
+      pollImageJob(key, d.jobId, el);
+    }).catch(function(){el.classList.remove('loading');el.textContent='🎨 网络错误, 重试'});
+}
+
+function pollImageJob(key, jobId, el){
+  if(imageJobPollers[key]) clearInterval(imageJobPollers[key]);
+  imageJobPollers[key]=setInterval(function(){
+    fetch('/api/image-job?id='+encodeURIComponent(jobId)+'&t='+Date.now())
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        if(!data || !data.ok || !data.job) return;
+        var job=data.job;
+        if(job.status==='queued'){
+          el.textContent='排队中...';
+          return;
+        }
+        if(job.status==='running'){
+          el.textContent='生成中...';
+          return;
+        }
+        clearInterval(imageJobPollers[key]);
+        delete imageJobPollers[key];
+        el.classList.remove('loading');
+        if(job.status==='done' && job.path){
+          var imageUrl = '/api/image?path=' + encodeURIComponent(job.path);
+          var wrap=document.getElementById('img-'+key);
+          if(wrap) wrap.innerHTML='<img src="'+imageUrl+'" class="gen-img" loading="lazy">';
+          el.style.display='none';
+          chat.scrollTop=chat.scrollHeight;
+          fetchContent(false).catch(function(){});
+          return;
+        }
+        el.textContent='🎨 生成失败, 重试';
+        if(job.error){
+          el.title=job.error;
+        }
+      })
+      .catch(function(){
+        clearInterval(imageJobPollers[key]);
+        delete imageJobPollers[key];
+        el.classList.remove('loading');
+        el.textContent='🎨 网络错误, 重试';
+      });
+  }, 1500);
+}
+
+function pick(i){
+  if(!currentOptions[i]) return;
+  input.value=currentOptions[i];
+  send();
+}
+
+function toggleTheme(){
+  var b=document.body; b.dataset.theme=b.dataset.theme==='dark'?'light':'dark';
+}
+
+function toggleSettings(){
+  var p=document.getElementById('settings-panel'),o=document.getElementById('settings-overlay');
+  var open=!p.classList.contains('open');
+  p.classList.toggle('open',open);o.classList.toggle('open',open);
+}
+
+function saveSetting(key,val){
+  var s={};s[key]=val;fetch('/api/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(s)})
+    .then(function(){ loadContextInspect(); });
+}
+
+function setCardStatus(text, isError){
+  var el=document.getElementById('card-status');
+  if(!el) return;
+  el.textContent=text;
+  el.style.color=isError?'#b42318':'var(--muted)';
+}
+
+function fillCardForm(card){
+  if(!card || !card.fields) return;
+  currentCardId=card.id||'';
+  currentCardFields=card.fields;
+  document.getElementById('card-id').value=currentCardId;
+  document.getElementById('card-name').value=card.fields.name||'';
+  document.getElementById('card-tags').value=Array.isArray(card.fields.tags)?card.fields.tags.join(', '):'';
+  document.getElementById('card-description').value=card.fields.description||'';
+  document.getElementById('card-personality').value=card.fields.personality||'';
+  document.getElementById('card-scenario').value=card.fields.scenario||'';
+  document.getElementById('card-first-mes').value=card.fields.first_mes||'';
+  document.getElementById('card-mes-example').value=card.fields.mes_example||'';
+  document.getElementById('card-system-prompt').value=card.fields.system_prompt||'';
+  document.getElementById('card-post-history').value=card.fields.post_history_instructions||'';
+  titleEl.textContent=(card.fields.name||currentCardId||'OpenCode RP');
+}
+
+function collectCardFields(){
+  return {
+    name: document.getElementById('card-name').value.trim(),
+    tags: document.getElementById('card-tags').value,
+    description: document.getElementById('card-description').value,
+    personality: document.getElementById('card-personality').value,
+    scenario: document.getElementById('card-scenario').value,
+    first_mes: document.getElementById('card-first-mes').value,
+    mes_example: document.getElementById('card-mes-example').value,
+    system_prompt: document.getElementById('card-system-prompt').value,
+    post_history_instructions: document.getElementById('card-post-history').value
+  };
+}
+
+function loadCards(selectedId){
+  return fetch('/api/cards?t='+Date.now()).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '加载角色卡失败');
+    var cards=Array.isArray(data.cards)?data.cards:[];
+    var current=selectedId || data.current || '';
+    cardSwitch.innerHTML=cards.map(function(card){
+      var label=(card.name||card.id)+(card.active?' · 当前':'');
+      return '<option value="'+card.id.replace(/"/g,'&quot;')+'">'+label+'</option>';
+    }).join('');
+    if(current) cardSwitch.value=current;
+    return data;
+  });
+}
+
+function loadCurrentCard(){
+  return fetch('/api/card?t='+Date.now()).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '加载当前角色卡失败');
+    fillCardForm(data.card);
+    setCardStatus('角色卡已载入', false);
+    return data.card;
+  }).catch(function(err){
+    setCardStatus(err.message || '读取角色卡失败', true);
+    throw err;
+  });
+}
+
+function reloadCurrentCard(){
+  loadCurrentCard().catch(function(){});
+}
+
+function switchCard(cardId){
+  if(!cardId || cardId===currentCardId) return;
+  setCardStatus('正在切换角色卡...', false);
+  fetch('/api/cards/switch',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:cardId})
+  }).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '切换失败');
+    fillCardForm(data.card);
+    return loadCards(data.current);
+  }).then(function(){
+    return loadWorldbooks();
+  }).then(function(){
+    return loadWorldbook(currentWorldbookId);
+  }).then(function(){
+    setCardStatus('角色卡已切换', false);
+    loadContextInspect();
+  }).catch(function(err){
+    setCardStatus(err.message || '切换角色卡失败', true);
+    if(currentCardId) cardSwitch.value=currentCardId;
+  });
+}
+
+function saveCard(){
+  if(!currentCardId){
+    setCardStatus('当前没有可保存的角色卡', true);
+    return;
+  }
+  setCardStatus('正在保存角色卡...', false);
+  fetch('/api/card',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({id:currentCardId, fields:collectCardFields()})
+  }).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '保存失败');
+    fillCardForm(data.card);
+    return loadCards(currentCardId);
+  }).then(function(){
+    setCardStatus('角色卡已保存', false);
+    loadContextInspect();
+  }).catch(function(err){
+    setCardStatus(err.message || '保存角色卡失败', true);
+  });
+}
+
+function renderContextInspect(context){
+  var output=document.getElementById('context-output');
+  if(!context){
+    output.textContent='没有上下文数据';
+    return;
+  }
+  var meta=context.metadata || {};
+  var lore=Array.isArray(context.activatedLore) ? context.activatedLore : [];
+  var lines=[
+    '阶段: ' + (context.phase || 'idle'),
+    '角色卡: ' + (context.cardId || '-'),
+    '用户输入: ' + (context.userMessage || '-'),
+    '上下文预算: ' + (meta.budget != null ? meta.budget : '-'),
+    '已使用: ' + (meta.total_used != null ? meta.total_used : '-'),
+    '剩余: ' + (meta.remaining != null ? meta.remaining : '-'),
+    '保留历史轮次: ' + (meta.history_turns_kept != null ? meta.history_turns_kept : '-'),
+    '历史裁剪数: ' + (meta.history_trimmed != null ? meta.history_trimmed : '-'),
+    '激活世界书: ' + (lore.length ? '' : '无')
+  ];
+  if(lore.length){
+    lore.forEach(function(item){
+      lines.push('- ' + (item.comment || '(无注释)') + ' [' + (item.reason || '-') + ']');
+    });
+  }
+  if(context.stateSummary){
+    lines.push('');
+    lines.push(context.stateSummary);
+  }
+  output.textContent=lines.join('\n');
+}
+
+function loadContextInspect(){
+  return fetch('/api/context?t='+Date.now()).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '加载上下文失败');
+    renderContextInspect(data.context);
+    return data.context;
+  }).catch(function(err){
+    document.getElementById('context-output').textContent=err.message || '加载上下文失败';
+  });
+}
+
+function setWorldbookStatus(text, isError){
+  var el=document.getElementById('worldbook-status');
+  if(!el) return;
+  el.textContent=text;
+  el.style.color=isError?'#b42318':'var(--muted)';
+}
+
+function renderWorldbookList(items){
+  var select=document.getElementById('worldbook-switch');
+  select.innerHTML=items.map(function(book){
+    return '<option value="'+book.id.replace(/"/g,'&quot;')+'">'+book.name+'</option>';
+  }).join('');
+  select.value=currentWorldbookId;
+}
+
+function renderWorldbookEntries(){
+  var list=document.getElementById('worldbook-entry-list');
+  if(!currentWorldbookEntries.length){
+    list.innerHTML='<div class="panel-note">当前世界书还没有条目</div>';
+    clearWorldbookEditor();
+    return;
+  }
+  list.innerHTML=currentWorldbookEntries.map(function(entry){
+    var active=entry.uid===selectedWorldbookEntryUid?' active':'';
+    var title=entry.comment || entry.key.join(', ') || ('条目 #' + entry.uid);
+    var meta=(entry.constant?'常驻':'关键词')+' · order '+entry.order+' · '+(entry.disable?'已禁用':'启用中');
+    return '<div class="entry-item'+active+'" onclick="selectWorldbookEntry('+entry.uid+')"><div class="entry-item-title">'+escapeHtml(title)+'</div><div class="entry-item-meta">'+escapeHtml(meta)+'</div></div>';
+  }).join('');
+}
+
+function escapeHtml(text){
+  return String(text || '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function clearWorldbookEditor(){
+  document.getElementById('wb-comment').value='';
+  document.getElementById('wb-key').value='';
+  document.getElementById('wb-keysecondary').value='';
+  document.getElementById('wb-content').value='';
+  document.getElementById('wb-position').value='1';
+  document.getElementById('wb-order').value='100';
+  document.getElementById('wb-constant').checked=false;
+  document.getElementById('wb-disable').checked=false;
+  document.getElementById('wb-selective').checked=false;
+}
+
+function fillWorldbookEntry(entry){
+  if(!entry){
+    clearWorldbookEditor();
+    return;
+  }
+  document.getElementById('wb-comment').value=entry.comment||'';
+  document.getElementById('wb-key').value=Array.isArray(entry.key)?entry.key.join(', '):'';
+  document.getElementById('wb-keysecondary').value=Array.isArray(entry.keysecondary)?entry.keysecondary.join(', '):'';
+  document.getElementById('wb-content').value=entry.content||'';
+  document.getElementById('wb-position').value=String(entry.position||0);
+  document.getElementById('wb-order').value=String(entry.order||100);
+  document.getElementById('wb-constant').checked=!!entry.constant;
+  document.getElementById('wb-disable').checked=!!entry.disable;
+  document.getElementById('wb-selective').checked=!!entry.selective;
+}
+
+function getSelectedWorldbookEntry(){
+  for(var i=0;i<currentWorldbookEntries.length;i++){
+    if(currentWorldbookEntries[i].uid===selectedWorldbookEntryUid) return currentWorldbookEntries[i];
+  }
+  return null;
+}
+
+function persistWorldbookEditor(){
+  var entry=getSelectedWorldbookEntry();
+  if(!entry) return;
+  entry.comment=document.getElementById('wb-comment').value.trim();
+  entry.key=parseTagInput(document.getElementById('wb-key').value);
+  entry.keysecondary=parseTagInput(document.getElementById('wb-keysecondary').value);
+  entry.content=document.getElementById('wb-content').value;
+  entry.position=parseInt(document.getElementById('wb-position').value,10) || 0;
+  entry.order=parseInt(document.getElementById('wb-order').value,10) || 100;
+  entry.constant=document.getElementById('wb-constant').checked;
+  entry.disable=document.getElementById('wb-disable').checked;
+  entry.selective=document.getElementById('wb-selective').checked;
+}
+
+function parseTagInput(text){
+  return String(text || '').split(',').map(function(item){ return item.trim(); }).filter(Boolean);
+}
+
+function loadWorldbooks(){
+  return fetch('/api/worldbooks?t='+Date.now()).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '加载世界书列表失败');
+    currentWorldbookId=data.current || 'main';
+    renderWorldbookList(Array.isArray(data.worldbooks)?data.worldbooks:[]);
+    return data;
+  });
+}
+
+function loadWorldbook(bookId){
+  var target=bookId || currentWorldbookId || 'main';
+  return fetch('/api/worldbook?name='+encodeURIComponent(target)+'&t='+Date.now()).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '加载世界书失败');
+    currentWorldbookId=data.worldbook.id;
+    currentWorldbookEntries=Array.isArray(data.worldbook.entries)?data.worldbook.entries:[];
+    selectedWorldbookEntryUid=currentWorldbookEntries.length ? currentWorldbookEntries[0].uid : null;
+    renderWorldbookEntries();
+    fillWorldbookEntry(getSelectedWorldbookEntry());
+    document.getElementById('worldbook-switch').value=currentWorldbookId;
+    setWorldbookStatus('世界书已载入', false);
+    return data.worldbook;
+  }).catch(function(err){
+    setWorldbookStatus(err.message || '读取世界书失败', true);
+    throw err;
+  });
+}
+
+function switchWorldbook(bookId){
+  persistWorldbookEditor();
+  loadWorldbook(bookId).catch(function(){});
+}
+
+function selectWorldbookEntry(uid){
+  persistWorldbookEditor();
+  selectedWorldbookEntryUid=uid;
+  renderWorldbookEntries();
+  fillWorldbookEntry(getSelectedWorldbookEntry());
+}
+
+function createWorldbookEntry(){
+  persistWorldbookEditor();
+  var maxUid=0;
+  currentWorldbookEntries.forEach(function(entry){ if(entry.uid>maxUid) maxUid=entry.uid; });
+  var next={
+    uid:maxUid+1,
+    comment:'',
+    key:[],
+    keysecondary:[],
+    content:'',
+    constant:false,
+    selective:false,
+    order:100,
+    position:1,
+    disable:false
+  };
+  currentWorldbookEntries.push(next);
+  selectedWorldbookEntryUid=next.uid;
+  renderWorldbookEntries();
+  fillWorldbookEntry(next);
+  setWorldbookStatus('已新增条目，记得保存世界书', false);
+}
+
+function deleteWorldbookEntry(){
+  if(selectedWorldbookEntryUid===null) return;
+  currentWorldbookEntries=currentWorldbookEntries.filter(function(entry){ return entry.uid!==selectedWorldbookEntryUid; });
+  selectedWorldbookEntryUid=currentWorldbookEntries.length ? currentWorldbookEntries[0].uid : null;
+  renderWorldbookEntries();
+  fillWorldbookEntry(getSelectedWorldbookEntry());
+  setWorldbookStatus('条目已删除，记得保存世界书', false);
+}
+
+function saveWorldbook(){
+  persistWorldbookEditor();
+  setWorldbookStatus('正在保存世界书...', false);
+  fetch('/api/worldbook',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:currentWorldbookId, entries:currentWorldbookEntries})
+  }).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '保存世界书失败');
+    currentWorldbookEntries=Array.isArray(data.worldbook.entries)?data.worldbook.entries:[];
+    if(!getSelectedWorldbookEntry() && currentWorldbookEntries.length){
+      selectedWorldbookEntryUid=currentWorldbookEntries[0].uid;
+    }
+    renderWorldbookEntries();
+    fillWorldbookEntry(getSelectedWorldbookEntry());
+    return loadWorldbooks();
+  }).then(function(){
+    setWorldbookStatus('世界书已保存', false);
+    loadContextInspect();
+  }).catch(function(err){
+    setWorldbookStatus(err.message || '保存世界书失败', true);
+  });
+}
+
+function previewWorldbook(){
+  persistWorldbookEditor();
+  var text=document.getElementById('wb-preview-input').value;
+  fetch('/api/worldbook/preview',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:currentWorldbookId, text:text})
+  }).then(function(r){return r.json()}).then(function(data){
+    if(!data || !data.ok) throw new Error(data && data.error ? data.error : '预览失败');
+    var matches=(data.preview && Array.isArray(data.preview.matches)) ? data.preview.matches : [];
+    var output=document.getElementById('wb-preview-output');
+    if(!matches.length){
+      output.textContent='没有条目被触发';
+      return;
+    }
+    output.textContent=matches.map(function(item){
+      return (item.comment || ('条目 #' + item.uid)) + ' [' + item.reason + '] 关键词: ' + (item.keys || []).join(', ');
+    }).join('\n');
+  }).catch(function(err){
+    document.getElementById('wb-preview-output').textContent=err.message || '预览失败';
+  });
+}
+
+// background polling
+setInterval(function(){
+  if(!pollTimer){
+    fetchContent(false).catch(function(){});
+  }
+},4000);
+
+// init
+autoResizeInput();
+fetchContent(false).catch(function(){});
+fetch('/api/settings').then(r=>r.json()).then(s=>{
+  if(!s)return;
+  document.getElementById('s-style').value=s.style||'default';
+  document.getElementById('s-nsfw').value=s.nsfw||'off';
+  document.getElementById('s-wc').value=s.wordCount||600;
+  document.getElementById('wc-val').textContent=s.wordCount||600;
+});
+loadCards()
+  .then(function(){ return loadCurrentCard(); })
+  .then(function(){ return loadWorldbooks(); })
+  .then(function(){ return loadWorldbook(currentWorldbookId); })
+  .then(function(){ return loadContextInspect(); })
+  .catch(function(){});
+</script>
+</body>
+</html>

@@ -1,16 +1,42 @@
-# 密钥文件 — 绝不能提交到 git
+# 密钥文件
 .env
 
-# 运行时文件 (由用户 RP 自动生成)
-saves/
-current-card.txt
-rp-log.txt
-session-state.md
-image-queue.txt
-*.log
-
-# 生成的图片
+# 顶层运行输出
 generated/
+state.js
+
+# 运行时文件 (每张角色卡内)
+角色卡/*/rp-log.txt
+角色卡/*/session-state.md
+角色卡/*/image-queue.txt
+角色卡/*/generated/
+角色卡/*/airp-session/
+角色卡/*/memory/
+角色卡/*/*.log
+
+# 卡片本体 — 用户自己放, example-card 除外
+角色卡/*/card.json
+!角色卡/example-card/card.json
+角色卡/*/worldbooks/*.json
+!角色卡/example-card/worldbooks/main.json
+
+# 当前激活标记
+current-card.txt
+
+# Web 前端运行时文件
+web-frontend/web-input.txt
+web-frontend/web-response.txt
+web-frontend/web-needs-reply
+web-frontend/.pending
+web-frontend/chat_log.json
+web-frontend/content.js
+web-frontend/context-inspect.json
+web-frontend/image_jobs.json
+web-frontend/img_generated.json
+web-frontend/server-*.log
+web-frontend/settings.json
+web-frontend/state.js
+web-frontend/test.html
 
 # Python 缓存
 __pycache__/
@@ -21,7 +47,3 @@ __pycache__/
 .vscode/
 .idea/
 .DS_Store
-
-# 角色卡 — 用户自己放自己的卡片
-角色卡/*.json
-!角色卡/example-card.json

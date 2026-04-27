@@ -11,9 +11,15 @@
         "creator_notes": "",
         "system_prompt": "",
         "post_history_instructions": "",
-        "tags": ["slice of life", "fantasy", "cozy", "sfw"],
+        "tags": [
+            "slice of life",
+            "fantasy",
+            "cozy",
+            "sfw"
+        ],
         "creator": "",
         "character_version": "1.0",
-        "alternate_greetings": []
+        "alternate_greetings": [],
+        "extensions": {}
     }
 }
