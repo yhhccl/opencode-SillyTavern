@@ -1,0 +1,27 @@
+# 密钥文件 — 绝不能提交到 git
+.env
+
+# 运行时文件 (由用户 RP 自动生成)
+saves/
+current-card.txt
+rp-log.txt
+session-state.md
+image-queue.txt
+*.log
+
+# 生成的图片
+generated/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE / 系统
+.vscode/
+.idea/
+.DS_Store
+
+# 角色卡 — 用户自己放自己的卡片
+角色卡/*.json
+!角色卡/example-card.json

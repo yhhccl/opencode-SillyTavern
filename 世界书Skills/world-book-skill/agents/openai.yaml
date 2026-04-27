@@ -1,0 +1,13 @@
+name: world-book-create
+display_name: World Book Manager
+short_description: Create and edit SillyTavern world book JSON entries via CLI
+description: >-
+  CLI tool for managing SillyTavern World Book (世界书) JSON files.
+  Supports creating new world books, adding/editing/deleting entries,
+  setting injection positions (↑Char ↓Char ↑AT ↓AT @D ↑EM ↓EM Outlet),
+  trigger keywords, depth, activation strategies, and all entry-level fields.
+icon: ""
+default_prompt: |
+  Use `scripts/world-book-create.py` to manage SillyTavern world book entries.
+  See `references/position-guide.md` for position conventions.
+  See `references/entry-conventions.md` for content writing conventions.
