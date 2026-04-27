@@ -9,6 +9,7 @@
   --bg:#f3f3f3; --white:#fff; --green:#95ec69; --text:#1f1f1f; --muted:#8c8c8c;
   --bar:#f7f7f7; --bar-text:#171717; --input-bg:#fff; --shadow:0 1px 2px rgba(0,0,0,.04);
   --sep:rgba(0,0,0,.08); --composer:#fff; --composer-border:#d9d9d9;
+  --page-width:430px;
 }
 [data-theme="dark"] {
   --bg:#111; --white:#1f1f1f; --green:#0f8f48; --text:#ececec; --muted:#7d7d7d;
@@ -19,7 +20,7 @@
 body{
   font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   background:var(--bg); height:100dvh; display:flex; flex-direction:column;
-  max-width:430px; margin:0 auto; overflow:hidden;
+  max-width:var(--page-width); margin:0 auto; overflow:hidden;
   -webkit-tap-highlight-color:transparent;
   border-left:1px solid var(--sep); border-right:1px solid var(--sep);
 }
@@ -279,6 +280,8 @@ body{
   <select id="s-nsfw" onchange="saveSetting('nsfw',this.value)"><option value="off">关闭</option><option value="mild">舒缓</option><option value="direct">直白</option></select>
   <label>字数: <span id="wc-val">600</span></label>
   <input type="range" id="s-wc" min="200" max="2000" step="100" value="600" oninput="document.getElementById('wc-val').textContent=this.value" onchange="saveSetting('wordCount',this.value)">
+  <label>页面宽度: <span id="pw-val">430</span></label>
+  <input type="range" id="s-pw" min="320" max="1200" step="10" value="430" oninput="applyPageWidth(this.value)" onchange="saveSetting('pageWidth',this.value)">
   <div class="panel-actions">
     <button class="secondary-btn" onclick="toggleSettings()">关闭</button>
   </div>
@@ -482,6 +485,11 @@ function pick(i){
 
 function toggleTheme(){
   var b=document.body; b.dataset.theme=b.dataset.theme==='dark'?'light':'dark';
+}
+
+function applyPageWidth(val){
+  document.getElementById('pw-val').textContent=val;
+  document.documentElement.style.setProperty('--page-width',val+'px');
 }
 
 function toggleSettings(){
@@ -876,6 +884,10 @@ fetch('/api/settings').then(r=>r.json()).then(s=>{
   document.getElementById('s-nsfw').value=s.nsfw||'off';
   document.getElementById('s-wc').value=s.wordCount||600;
   document.getElementById('wc-val').textContent=s.wordCount||600;
+  var pw=s.pageWidth||430;
+  document.getElementById('s-pw').value=pw;
+  document.getElementById('pw-val').textContent=pw;
+  document.documentElement.style.setProperty('--page-width',pw+'px');
 });
 loadCards()
   .then(function(){ return loadCurrentCard(); })
